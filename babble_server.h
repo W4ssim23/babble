@@ -39,4 +39,8 @@ int write_to_client(unsigned long key, int size, void* buf);
 /* get client name from client key */
 char* get_name_from_key(unsigned long key);
 
+
+int parse_command(char* str, command_t *cmd);
+int process_command(command_t *cmd, answer_t **answer);
+
 #endif

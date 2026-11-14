@@ -28,4 +28,8 @@
 /* expressed in micro-seconds */
 #define MAX_DELAY 10000
 
+
+// cmd buffer size
+#define CMD_BUFF_SIZE 100
+
 #endif

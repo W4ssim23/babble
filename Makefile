@@ -16,7 +16,8 @@ SERVER_DEPS= 	babble_utils.c \
 		babble_registration.c \
 		babble_timeline.c \
 		babble_server_answer.c	\
-		fastrand.c
+		fastrand.c \
+		babble_thread.c
 
 # source files the client depends on
 CLIENT_DEPS= 	babble_communication.c  \
