@@ -29,6 +29,7 @@ typedef struct cmd_buff_struct
 {
     command_t **cmd;
     uint next;
+    uint curr;
 } cmd_buff_t;
 
 cmd_buff_t cmd_buff;
@@ -45,6 +46,7 @@ void init_cmd_buff(void)
 
     cmd_buff.cmd = calloc(CMD_BUFF_SIZE, sizeof(command_t *)); // TODO: free before termination
     cmd_buff.next = 0;
+    cmd_buff.curr = 0;
 
     sem_init(&sem_exec, 0, 0);
     sem_init(&sem_com, 0, CMD_BUFF_SIZE);
@@ -72,9 +74,9 @@ void *exec_thread_core(void *arg)
         // process cmd and send enswear
         answer_t *answer = NULL;
 
-        if (process_command(cmd_buff.cmd[cmd_buff.next - 1], &answer) == -1)
+        if (process_command(cmd_buff.cmd[cmd_buff.curr], &answer) == -1)
         {
-            fprintf(stderr, "Warning: unable to process command from client %lu\n", cmd_buff.cmd[cmd_buff.next - 1]->key);
+            fprintf(stderr, "Warning: unable to process command from client %lu\n", cmd_buff.cmd[cmd_buff.curr]->key);
         }
 
         // free(cmd);
@@ -85,7 +87,7 @@ void *exec_thread_core(void *arg)
         }
         free_answer(answer);
 
-        cmd_buff.next--;
+        cmd_buff.curr = (cmd_buff.curr + 1) % CMD_BUFF_SIZE;
 
         pthread_mutex_unlock(&buff_mutex);
 
@@ -178,7 +180,7 @@ void *com_thread_core(void *arg)
             pthread_mutex_lock(&buff_mutex);
 
             cmd_buff.cmd[cmd_buff.next] = cmd;
-            cmd_buff.next++;
+            cmd_buff.next = (cmd_buff.next + 1) % CMD_BUFF_SIZE;
 
             pthread_mutex_unlock(&buff_mutex);
 
