@@ -69,29 +69,30 @@ void *exec_thread_core(void *arg)
 
         sem_wait(&sem_exec);
 
-        pthread_mutex_lock(&buff_mutex);
+        pthread_mutex_lock(&buff_mutex); // getting cmd instead of using cmd_buff[curr] directly would allow to shorten the CS
+
+        command_t *cmd = cmd_buff.cmd[cmd_buff.curr];
+        cmd_buff.curr = (cmd_buff.curr + 1) % CMD_BUFF_SIZE;
+
+        pthread_mutex_unlock(&buff_mutex);
+
+        sem_post(&sem_com);
 
         // process cmd and send enswear
         answer_t *answer = NULL;
 
-        if (process_command(cmd_buff.cmd[cmd_buff.curr], &answer) == -1)
+        if (process_command(cmd, &answer) == -1)
         {
-            fprintf(stderr, "Warning: unable to process command from client %lu\n", cmd_buff.cmd[cmd_buff.curr]->key);
+            fprintf(stderr, "Warning: unable to process command from client %lu\n", cmd->key);
         }
 
-        // free(cmd);
+        free(cmd);
 
         if (send_answer_to_client(answer) == -1)
         {
             fprintf(stderr, "Warning: unable to answer command from client %lu\n", answer->key);
         }
         free_answer(answer);
-
-        cmd_buff.curr = (cmd_buff.curr + 1) % CMD_BUFF_SIZE;
-
-        pthread_mutex_unlock(&buff_mutex);
-
-        sem_post(&sem_com);
     }
     return NULL;
 }
