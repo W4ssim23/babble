@@ -14,7 +14,6 @@
 #include "babble_server.h"
 #include "babble_types.h"
 #include "babble_utils.h"
-#include "babble_communication.h"
 #include "babble_server_answer.h"
 #include "fastrand.h"
 
@@ -140,15 +139,6 @@ int main(int argc, char *argv[])
     int opt;
     int nb_args = 1;
 
-    char *recv_buff = NULL;
-    int recv_size = 0;
-
-    unsigned long client_key = 0;
-    char client_name[BABBLE_ID_MSIZE + 1];
-
-    command_t *cmd;
-    answer_t *answer = NULL;
-
     while ((opt = getopt(argc, argv, "+hp:r")) != -1)
     {
         switch (opt)
@@ -177,7 +167,7 @@ int main(int argc, char *argv[])
 
     server_data_init();
 
-    // NEW STUFF
+    //
     init_cmd_buff();
 
     pthread_t exec_thread;
@@ -186,6 +176,8 @@ int main(int argc, char *argv[])
         perror("Failed to create exec_thread");
         return -1;
     }
+
+    //
 
     if ((sockfd = server_connection_init(portno)) == -1)
     {
@@ -206,102 +198,21 @@ int main(int argc, char *argv[])
             return -1;
         }
 
-        // communication thread here ->, client name and key passed as arguments , recv_buffer answer cmd are local,
-
-        memset(client_name, 0, BABBLE_ID_MSIZE + 1);
-        if ((recv_size = network_recv(newsockfd, (void **)&recv_buff)) < 0)
+        int *arg = malloc(sizeof(int));
+        *arg = newsockfd;
+        pthread_t com_thread;
+        if (pthread_create(&com_thread, NULL, com_thread_core, arg) != 0)
         {
-            fprintf(stderr, "Error -- recv from client\n");
-            close(newsockfd);
+            perror("Failed to create com_thread");
+            close(*arg);
+            free(arg);
             continue;
         }
-
-        cmd = new_command(0);
-
-        if (parse_command(recv_buff, cmd) == -1 || cmd->cid != LOGIN)
-        {
-            fprintf(stderr, "Error -- in LOGIN message\n");
-            close(newsockfd);
-            free(cmd);
-            continue;
-        }
-
-        /* before processing the command, we should register the
-         * socket associated with the new client; this is to be done only
-         * for the LOGIN command */
-        cmd->sockfd = newsockfd;
-
-        if (process_command(cmd, &answer) == -1)
-        {
-            fprintf(stderr, "Error -- in LOGIN\n");
-            close(newsockfd);
-            free(cmd);
-            continue;
-        }
-
-        /* notify client of registration */
-        if (send_answer_to_client(answer) == -1)
-        {
-            fprintf(stderr, "Error -- in LOGIN ack\n");
-            close(newsockfd);
-            free(cmd);
-            free_answer(answer);
-            continue;
-        }
-        else
-        {
-            free_answer(answer);
-        }
-
-        /* let's store the key locally */
-        client_key = cmd->key;
-
-        strncpy(client_name, cmd->msg, BABBLE_ID_MSIZE);
-        free(recv_buff);
-        free(cmd);
-
-        /* looping on client commands */
-        while ((recv_size = network_recv(newsockfd, (void **)&recv_buff)) > 0)
-        {
-            cmd = new_command(client_key);
-
-            if (parse_command(recv_buff, cmd) == -1)
-            {
-                fprintf(stderr, "Warning: unable to parse message from client %s\n", client_name);
-                notify_parse_error(cmd, recv_buff, &answer);
-                send_answer_to_client(answer);
-                free_answer(answer);
-                free(cmd);
-            }
-            else
-            {
-                // send to the buffer cmd &answear
-                /* if(process_command(cmd, &answer) == -1){
-                    fprintf(stderr, "Warning: unable to process command from client %lu\n", cmd->key);
-                }
-                free(cmd); */
-
-                if (send_answer_to_client(answer) == -1)
-                {
-                    fprintf(stderr, "Warning: unable to answer command from client %lu\n", answer->key);
-                }
-                free_answer(answer);
-            }
-            free(recv_buff);
-        }
-
-        if (client_name[0] != 0)
-        {
-            cmd = new_command(client_key);
-            cmd->cid = UNREGISTER;
-
-            if (process_command(cmd, &answer) == -1)
-            {
-                fprintf(stderr, "Warning -- failed to unregister client %s\n", client_name);
-            }
-            free(cmd);
-        }
+        pthread_detach(com_thread);
     }
+
+    // dead code... TODO: find a better solution
+    clean_cmd_buff();
 
     close(sockfd);
     return 0;
