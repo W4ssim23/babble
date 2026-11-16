@@ -45,6 +45,9 @@ typedef struct client_bundle
                                   // editing disconnect while another thread is reading it wont cause a problem (will just be treated if the same cmd type was requested later)
                                   // and the rest of the attributes would be read and not modifiedso no race condition produced
 
+    int cur_cmd_count;
+    pthread_mutex_t cmd_count_mutex;
+    pthread_cond_t cmd_count_cond;
 } client_bundle_t;
 
 #endif

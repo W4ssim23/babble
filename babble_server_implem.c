@@ -201,16 +201,21 @@ int run_login_command(command_t *cmd, answer_t **answer)
     client_data->nb_followers = 1;
 
     pthread_mutex_init(&(client_data->client_mutex), NULL); // AAAAAA
+    pthread_mutex_init(&(client_data->cmd_count_mutex), NULL);
+    pthread_cond_init(&(client_data->cmd_count_cond), NULL);
+    client_data->cur_cmd_count = 0;
+    client_data->disconnected = 0;
 
     if (registration_insert(client_data))
     {
         timeline_free(client_data->timeline);
+        pthread_mutex_destroy(&(client_data->client_mutex));
+        pthread_mutex_destroy(&(client_data->cmd_count_mutex));
+        pthread_cond_destroy(&(client_data->cmd_count_cond));
         free(client_data);
         generate_cmd_error(cmd, answer);
         return -1;
     }
-
-    client_data->disconnected = 0;
 
     printf("### New client %s (key = %lu)\n", client_data->client_name, client_data->key);
 
@@ -295,6 +300,17 @@ int run_publish_command(command_t *cmd, answer_t **answer)
 
     *answer = the_answer;
 
+    pthread_mutex_lock(&client->cmd_count_mutex);
+
+    client->cur_cmd_count--;
+
+    if (client->cur_cmd_count == 0)
+    {
+        pthread_cond_broadcast(&client->cmd_count_cond); // i think signal might work, keeping it like this for now TODO
+    }
+
+    pthread_mutex_unlock(&client->cmd_count_mutex);
+
     return 0;
 }
 
@@ -321,6 +337,13 @@ int run_follow_command(command_t *cmd, answer_t **answer)
     if (f_client == NULL)
     {
         generate_cmd_error(cmd, answer);
+        pthread_mutex_lock(&client->cmd_count_mutex);
+        client->cur_cmd_count--;
+        if (client->cur_cmd_count == 0)
+        {
+            pthread_cond_broadcast(&client->cmd_count_cond);
+        }
+        pthread_mutex_unlock(&client->cmd_count_mutex);
         return 0;
     }
 
@@ -363,6 +386,17 @@ int run_follow_command(command_t *cmd, answer_t **answer)
 
     *answer = the_answer;
 
+    pthread_mutex_lock(&client->cmd_count_mutex);
+
+    client->cur_cmd_count--;
+
+    if (client->cur_cmd_count == 0)
+    {
+        pthread_cond_broadcast(&client->cmd_count_cond);
+    }
+
+    pthread_mutex_unlock(&client->cmd_count_mutex);
+
     return 0;
 }
 
@@ -379,6 +413,17 @@ int run_timeline_command(command_t *cmd, answer_t **answer)
     }
 
     timeline_generate_summary(client->timeline, answer);
+
+    pthread_mutex_lock(&client->cmd_count_mutex);
+
+    client->cur_cmd_count--;
+
+    if (client->cur_cmd_count == 0)
+    {
+        pthread_cond_broadcast(&client->cmd_count_cond);
+    }
+
+    pthread_mutex_unlock(&client->cmd_count_mutex);
 
     return 0;
 }
@@ -411,6 +456,14 @@ int run_fcount_command(command_t *cmd, answer_t **answer)
 
     *answer = the_answer;
 
+    pthread_mutex_lock(&client->cmd_count_mutex);
+    client->cur_cmd_count--;
+    if (client->cur_cmd_count == 0)
+    {
+        pthread_cond_broadcast(&client->cmd_count_cond);
+    }
+    pthread_mutex_unlock(&client->cmd_count_mutex);
+
     return 0;
 }
 
@@ -428,6 +481,13 @@ int run_rdv_command(command_t *cmd, answer_t **answer)
         generate_cmd_error(cmd, answer);
         return -1;
     }
+
+    pthread_mutex_lock(&client->cmd_count_mutex);
+
+    while (client->cur_cmd_count != 0)
+        pthread_cond_wait(&client->cmd_count_cond, &client->cmd_count_mutex);
+
+    pthread_mutex_unlock(&client->cmd_count_mutex);
 
     /* generate answer to client */
     the_answer = alloc_answer(client->key);
@@ -457,7 +517,9 @@ int unregisted_client(command_t *cmd)
         printf("### Unregister client %s (key = %lu)\n", client->client_name, client->key);
         close(client->sockfd);
         client->disconnected = 1;
-
+        // pthread_mutex_destroy(&(client->client_mutex));  // may cause problems TODO
+        // pthread_mutex_destroy(&(client->cmd_count_mutex));
+        // pthread_cond_destroy(&(client->cmd_count_cond));
         free_client_data(client);
     }
 

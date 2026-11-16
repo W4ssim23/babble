@@ -8,6 +8,7 @@
 #include "babble_communication.h"
 #include "babble_thread.h"
 #include "fastrand.h"
+#include "babble_registration.h"
 
 #include <pthread.h>
 #include <threads.h>
@@ -157,6 +158,11 @@ void *com_thread_core(void *arg)
     /* let's store the key locally */
     client_key = cmd->key;
 
+    // pthread_mutex_t* cmd_count_mutex =
+
+    client_bundle_t *client = registration_lookup(client_key); // akward but necessary
+                                                               // TODO: find a better way
+
     strncpy(client_name, cmd->msg, BABBLE_ID_MSIZE);
     free(recv_buff);
     free(cmd);
@@ -176,6 +182,14 @@ void *com_thread_core(void *arg)
         }
         else
         {
+            // the user will be waiting for the responce of RDV so no other commands can be lanched after it , so its safe to do it like this
+            if (cmd->cid != RDV)
+            {
+                pthread_mutex_lock(&client->cmd_count_mutex);
+                client->cur_cmd_count++;
+                pthread_mutex_unlock(&client->cmd_count_mutex);
+            }
+
             sem_wait(&sem_com);
 
             pthread_mutex_lock(&buff_mutex);

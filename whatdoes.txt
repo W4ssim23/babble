@@ -30,3 +30,7 @@ followers list.
 
 RDV:
     problem is that it might actually send a responce before all the previous commands have been executed since they might be ....
+
+
+for 1 , the user will be waiting for the responce of RDV so no other commands can be lanched after it 
+for 2, the server is treating the cmds in order , there is no way that a thread will get rdv if it other cmds that she will be waiting for arent already in execution or done 
