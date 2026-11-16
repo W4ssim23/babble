@@ -3,10 +3,10 @@
 
 /*********************************************/
 /* Config options that should not be changed */
-#define BABBLE_BUFFER_SIZE 256  /* Maximum size for a char buffer -- including
-                                   input buffer when reading from the console */
-#define BABBLE_PUBLICATION_MSIZE 64   /* Maximum size for a publication */
-#define BABBLE_ID_MSIZE 32  /* Maximum size for a client identifier */
+#define BABBLE_BUFFER_SIZE 256      /* Maximum size for a char buffer -- including \
+                                       input buffer when reading from the console */
+#define BABBLE_PUBLICATION_MSIZE 64 /* Maximum size for a publication */
+#define BABBLE_ID_MSIZE 32          /* Maximum size for a client identifier */
 /*********************************************/
 
 #define BABBLE_BACKLOG 100
@@ -28,8 +28,9 @@
 /* expressed in micro-seconds */
 #define MAX_DELAY 10000
 
-
 // cmd buffer size
 #define CMD_BUFF_SIZE 100
+
+#define MAX_EXEC_TH 100
 
 #endif

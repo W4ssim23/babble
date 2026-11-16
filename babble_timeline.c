@@ -7,75 +7,100 @@
 #include "babble_server.h"
 #include "babble_communication.h"
 
-timeline_t* timeline_create(unsigned long client_key)
+#include <threads.h>
+#include <semaphore.h>
+#include <unistd.h>
+
+timeline_t *timeline_create(unsigned long client_key)
 {
-    timeline_t* tm= malloc(sizeof(timeline_t));
+    timeline_t *tm = malloc(sizeof(timeline_t));
     tm->youngest = 0;
     tm->count_recent_adds = 0;
     tm->key = client_key;
-    
+
+    pthread_mutex_init(&(tm->timeline_mutex), NULL);
+
     return tm;
 }
 
 void timeline_free(timeline_t *timeline)
 {
+    // pthread_mutex_destroy(&(timeline->timeline_mutex));
     free(timeline);
 }
 
+// both insert and generate manipulate timeline probably at the same time
+//  best sol to insure safty while not locking every exec thread that is trying to execute this type
+//  of commands for diffrent clients (means diffrent structures) is to add a mutex to the timeline structure and use it to insure safty
+
+// besides that both functions read and write to the timeline so its not a typical reader writer problem, nor a producer consumer
+
+// TODO: find a more optimised way
 
 time_t timeline_insert(timeline_t *tm, client_bundle_t *publisher, char *msg)
 {
     struct timespec tt;
-    
-    publication_t *pub= &tm->circular_buffer[tm->youngest];
-    
+
+    pthread_mutex_lock(&(tm->timeline_mutex));
+    publication_t *pub = &tm->circular_buffer[tm->youngest];
+
     clock_gettime(CLOCK_REALTIME, &tt);
-    
-    memset(pub->msg, 0, BABBLE_PUBLICATION_MSIZE);    
+
+    memset(pub->msg, 0, BABBLE_PUBLICATION_MSIZE);
     strncpy(pub->msg, msg, BABBLE_PUBLICATION_MSIZE);
 
     pub->date = tt.tv_sec - server_start;
-    snprintf(pub->msg, BABBLE_BUFFER_SIZE,"    %s[%ld]: %s\n", publisher->client_name, pub->date, msg);
-    
+    snprintf(pub->msg, BABBLE_BUFFER_SIZE, "    %s[%ld]: %s\n", publisher->client_name, pub->date, msg);
+
     /* shifting the index */
     tm->youngest = (tm->youngest + 1) % BABBLE_TIMELINE_MSIZE;
 
     tm->count_recent_adds++;
 
-    return pub->date;
+    time_t date = pub->date;
+    pthread_mutex_unlock(&(tm->timeline_mutex));
+
+    return date;
 }
 
 void timeline_generate_summary(timeline_t *tm, answer_t **answer)
 {
-    answer_t *the_answer=NULL;
-    unsigned int index_first=0;
+    answer_t *the_answer = NULL;
+    unsigned int index_first = 0;
+
+    pthread_mutex_lock(&(tm->timeline_mutex));
 
     the_answer = alloc_answer(tm->key);
-    
+
     /* the first msg of the answer is the number of publications since
-     * the last call to timeline */    
+     * the last call to timeline */
     add_msg_to_answer(the_answer, sizeof(unsigned int), &tm->count_recent_adds);
 
     /* compute the index of the first msg to add to the timeline */
-    if(tm->count_recent_adds >= BABBLE_TIMELINE_MSIZE){
+    if (tm->count_recent_adds >= BABBLE_TIMELINE_MSIZE)
+    {
         index_first = tm->youngest;
-        
+
         /* deal with the corner case where the buffer is full */
         add_msg_to_answer(the_answer, BABBLE_BUFFER_SIZE, &tm->circular_buffer[index_first]);
         index_first = (index_first + 1) % BABBLE_TIMELINE_MSIZE;
     }
-    else{
+    else
+    {
         index_first = (BABBLE_TIMELINE_MSIZE + tm->youngest - tm->count_recent_adds) % BABBLE_TIMELINE_MSIZE;
     }
-    
+
     /* add all new msgs in the timeline */
-    while(index_first != tm->youngest ){
+    while (index_first != tm->youngest)
+    {
         add_msg_to_answer(the_answer, BABBLE_BUFFER_SIZE, &tm->circular_buffer[index_first]);
 
         index_first = (index_first + 1) % BABBLE_TIMELINE_MSIZE;
     }
 
     tm->count_recent_adds = 0;
-    
+
+    pthread_mutex_unlock(&(tm->timeline_mutex));
+
     *answer = the_answer;
 }

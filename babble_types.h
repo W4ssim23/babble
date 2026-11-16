@@ -2,14 +2,16 @@
 #define __BABBLE_TYPES_H__
 
 #include <time.h>
+#include <pthread.h>
 
 #include "babble_config.h"
 
 /* forward declaration, defined in babble_timeline.h */
 struct timeline;
 
-typedef enum{
-    LOGIN =0,
+typedef enum
+{
+    LOGIN = 0,
     PUBLISH,
     FOLLOW,
     TIMELINE,
@@ -18,27 +20,31 @@ typedef enum{
     UNREGISTER
 } command_id;
 
-typedef struct command{
+typedef struct command
+{
     command_id cid;
-    int sockfd;    /* only needed by the LOGIN command, other commands
-                  * will use the key */
+    int sockfd; /* only needed by the LOGIN command, other commands
+                 * will use the key */
     unsigned long key;
     char msg[BABBLE_PUBLICATION_MSIZE];
-    int answer_expected;   /* answer sent only if set */
+    int answer_expected; /* answer sent only if set */
 } command_t;
 
-typedef struct client_bundle{
-    unsigned long key;     /* hash of the name */
-    char client_name[BABBLE_ID_MSIZE];    /* name as provided by the
-                                          * client */
-    int sockfd;              /* socket to communicate with this client */
-    struct timeline *timeline;   /* timeline of the client */
-    struct client_bundle *followers[MAX_CLIENT];  /* key of the followers */
+typedef struct client_bundle
+{
+    unsigned long key;                           /* hash of the name */
+    char client_name[BABBLE_ID_MSIZE];           /* name as provided by the
+                                                  * client */
+    int sockfd;                                  /* socket to communicate with this client */
+    struct timeline *timeline;                   /* timeline of the client */
+    struct client_bundle *followers[MAX_CLIENT]; /* key of the followers */
     unsigned int nb_followers;
-    unsigned int disconnected; /* set to 1 when client has
-                                * disconnected */
+    unsigned int disconnected;    /* set to 1 when client has
+                                   * disconnected */
+    pthread_mutex_t client_mutex; // mainly to save the followers and nb_followers , timeline is insured by the struct it self
+                                  // editing disconnect while another thread is reading it wont cause a problem (will just be treated if the same cmd type was requested later)
+                                  // and the rest of the attributes would be read and not modifiedso no race condition produced
 
 } client_bundle_t;
-
 
 #endif

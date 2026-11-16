@@ -171,10 +171,14 @@ int main(int argc, char *argv[])
     init_cmd_buff();
 
     pthread_t exec_thread;
-    if (pthread_create(&exec_thread, NULL, exec_thread_core, NULL) != 0)
+    for (int i = 0; i < MAX_EXEC_TH; i++)
     {
-        perror("Failed to create exec_thread");
-        return -1;
+        if (pthread_create(&exec_thread, NULL, exec_thread_core, NULL) != 0)
+        {
+            perror("Failed to create exec_thread");
+            continue;
+        }
+        pthread_detach(exec_thread);
     }
 
     //

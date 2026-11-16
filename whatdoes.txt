@@ -1,0 +1,32 @@
+publish :
+->gets client bundle
+->adds the message to all followers timelines (and detect if some of them have disconnected)
+->clean followers list afterwards
+->creates an enswear (if its expected)
+
+follow :
+->gets client bundle - follower
+->gets the other client bundle - being followed
+->checks if he already follows him, adds him if he isnt (inside of the bundle of the one being followed)
+->generate enswear if expected
+
+timeline :
+->gets client bundle
+->generates timeline summery (reading and writing of the timline of the bundle)
+
+
+problems : 
+    timline might get written to an read from at the same time
+    so read write problem for timeline insert and generate (insert/insert insert/generate generate/generate)
+    editing followers list , read by publish , edited by publish , edited by follow
+
+2 publications from same user at one -> two probable problems 
+getting timeline while a client u follow is publishing 
+follow while publish 
+
+struct to protect :
+timeline.
+followers list.
+
+RDV:
+    problem is that it might actually send a responce before all the previous commands have been executed since they might be ....
